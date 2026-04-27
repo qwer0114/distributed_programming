@@ -8,9 +8,11 @@ import {
   useCallback,
   useTransition,
 } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
 import type { Market } from "@repo/types";
-import { useUpbitSocket, type SocketStatus } from "@/hooks/useUpbitSocket";
+import { useUpbitSocket } from "@/hooks/useUpbitSocket";
 import type { UpbitTicker } from "@/types/ticker";
+import { searchQueryAtom, wsStatusAtom } from "@/store/atoms";
 import styles from "./MarketTable.module.css";
 
 type SortColumn =
@@ -37,33 +39,54 @@ function formatPrice(price: number): string {
   return price.toFixed(8);
 }
 
-function formatTradeVolume(price: number): string {
+function formatVolume(price: number): string {
   const eok = price / 100_000_000;
   return eok.toLocaleString("ko-KR", { maximumFractionDigits: 0 });
 }
 
-function formatChangeRate(rate: number): string {
+function formatRate(rate: number): string {
   const sign = rate > 0 ? "+" : "";
   return `${sign}${(rate * 100).toFixed(2)}%`;
 }
 
 function formatChangePrice(price: number): string {
-  const sign = price > 0 ? "+" : "";
+  const sign = price > 0 ? "+" : price < 0 ? "" : "";
   return `${sign}${formatPrice(Math.abs(price))}`;
+}
+
+function SortIcon({ column, sortConfig }: {
+  column: SortColumn;
+  sortConfig: { column: SortColumn; direction: SortDirection };
+}) {
+  if (sortConfig.column !== column) {
+    return (
+      <svg className={styles.sortIconInactive} width="10" height="10" viewBox="0 0 10 14" fill="none">
+        <path d="M5 1L1 5h8L5 1z" fill="currentColor" opacity="0.3" />
+        <path d="M5 13L9 9H1l4 4z" fill="currentColor" opacity="0.3" />
+      </svg>
+    );
+  }
+  return (
+    <svg className={styles.sortIconActive} width="10" height="10" viewBox="0 0 10 14" fill="none">
+      {sortConfig.direction === "asc" ? (
+        <path d="M5 1L1 6h8L5 1z" fill="currentColor" />
+      ) : (
+        <path d="M5 13L9 8H1l4 5z" fill="currentColor" />
+      )}
+    </svg>
+  );
 }
 
 export default function MarketTable({ markets }: MarketTableProps) {
   const tickerMapRef = useRef<Map<string, UpbitTicker>>(new Map());
-  const [tickerMap, setTickerMap] = useState<Map<string, UpbitTicker>>(
-    new Map(),
-  );
-  const [searchQuery, setSearchQuery] = useState("");
+  const [tickerMap, setTickerMap] = useState<Map<string, UpbitTicker>>(new Map());
+  const searchQuery = useAtomValue(searchQueryAtom);
+  const setWsStatus = useSetAtom(wsStatusAtom);
   const [sortConfig, setSortConfig] = useState<{
     column: SortColumn;
     direction: SortDirection;
   }>({ column: "acc_trade_price_24h", direction: "desc" });
   const [currentPage, setCurrentPage] = useState(1);
-  const [wsStatus, setWsStatus] = useState<SocketStatus>("connecting");
   const [, startTransition] = useTransition();
 
   const marketCodes = useMemo(() => markets.map((m) => m.market), [markets]);
@@ -72,7 +95,6 @@ export default function MarketTable({ markets }: MarketTableProps) {
     tickerMapRef.current.set(data.code, data);
   }, []);
 
-  // 200ms마다 ref → state 동기화 (WebSocket 메시지마다 리렌더 방지)
   useEffect(() => {
     const interval = setInterval(() => {
       startTransition(() => {
@@ -90,12 +112,10 @@ export default function MarketTable({ markets }: MarketTableProps) {
     isOnlyRealtime: false,
   });
 
-  const mergedData = useMemo<MergedMarket[]>(() => {
-    return markets.map((market) => ({
-      ...market,
-      ticker: tickerMap.get(market.market) ?? null,
-    }));
-  }, [markets, tickerMap]);
+  const mergedData = useMemo<MergedMarket[]>(
+    () => markets.map((m) => ({ ...m, ticker: tickerMap.get(m.market) ?? null })),
+    [markets, tickerMap],
+  );
 
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return mergedData;
@@ -109,39 +129,36 @@ export default function MarketTable({ markets }: MarketTableProps) {
 
   const sortedData = useMemo(() => {
     return [...filteredData].sort((a, b) => {
-      let aVal: number | string = 0;
-      let bVal: number | string = 0;
-
+      let av: number | string = 0;
+      let bv: number | string = 0;
       switch (sortConfig.column) {
         case "korean_name":
-          aVal = a.korean_name;
-          bVal = b.korean_name;
+          av = a.korean_name;
+          bv = b.korean_name;
           break;
         case "trade_price":
-          aVal = a.ticker?.trade_price ?? -1;
-          bVal = b.ticker?.trade_price ?? -1;
+          av = a.ticker?.trade_price ?? -1;
+          bv = b.ticker?.trade_price ?? -1;
           break;
         case "signed_change_rate":
-          aVal = a.ticker?.signed_change_rate ?? 0;
-          bVal = b.ticker?.signed_change_rate ?? 0;
+          av = a.ticker?.signed_change_rate ?? 0;
+          bv = b.ticker?.signed_change_rate ?? 0;
           break;
         case "signed_change_price":
-          aVal = a.ticker?.signed_change_price ?? 0;
-          bVal = b.ticker?.signed_change_price ?? 0;
+          av = a.ticker?.signed_change_price ?? 0;
+          bv = b.ticker?.signed_change_price ?? 0;
           break;
         case "acc_trade_price_24h":
-          aVal = a.ticker?.acc_trade_price_24h ?? -1;
-          bVal = b.ticker?.acc_trade_price_24h ?? -1;
+          av = a.ticker?.acc_trade_price_24h ?? -1;
+          bv = b.ticker?.acc_trade_price_24h ?? -1;
           break;
       }
-
-      if (typeof aVal === "string") {
-        const cmp = aVal.localeCompare(bVal as string, "ko");
-        return sortConfig.direction === "asc" ? cmp : -cmp;
+      if (typeof av === "string") {
+        const c = av.localeCompare(bv as string, "ko");
+        return sortConfig.direction === "asc" ? c : -c;
       }
-
-      const diff = (aVal as number) - (bVal as number);
-      return sortConfig.direction === "asc" ? diff : -diff;
+      const d = (av as number) - (bv as number);
+      return sortConfig.direction === "asc" ? d : -d;
     });
   }, [filteredData, sortConfig]);
 
@@ -160,49 +177,21 @@ export default function MarketTable({ markets }: MarketTableProps) {
     setCurrentPage(1);
   };
 
-  const getSortIcon = (column: SortColumn) => {
-    if (sortConfig.column !== column)
-      return <span className={styles.sortIcon}>↕</span>;
-    return (
-      <span className={`${styles.sortIcon} ${styles.sortActive}`}>
-        {sortConfig.direction === "asc" ? "↑" : "↓"}
-      </span>
-    );
-  };
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
+  useEffect(() => {
     setCurrentPage(1);
-  };
+  }, [searchQuery]);
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>암호화폐 시세</h1>
-        <div className={styles.controls}>
-          <div
-            className={`${styles.wsStatus} ${wsStatus === "connected" ? styles.connected : styles.connecting}`}
-          >
-            <span className={styles.statusDot} />
-            {wsStatus === "connected" ? "실시간" : "연결중..."}
-          </div>
-          <input
-            type="search"
-            placeholder="코인명 또는 심볼 검색"
-            value={searchQuery}
-            onChange={handleSearch}
-            className={styles.searchInput}
-          />
-        </div>
-      </div>
-
+      {/* Search result count */}
       {isSearching && (
         <p className={styles.searchResult}>
-          검색 결과: <strong>{sortedData.length}</strong>개
+          <span className={styles.searchResultCount}>{sortedData.length}</span>개 검색됨
         </p>
       )}
 
-      <div className={styles.tableWrapper}>
+      {/* Table */}
+      <div className={styles.tablePanel}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -210,72 +199,80 @@ export default function MarketTable({ markets }: MarketTableProps) {
                 className={`${styles.th} ${styles.sortable} ${styles.colName}`}
                 onClick={() => handleSort("korean_name")}
               >
-                코인명 / 심볼 {getSortIcon("korean_name")}
+                <span>코인명</span>
+                <SortIcon column="korean_name" sortConfig={sortConfig} />
               </th>
               <th
-                className={`${styles.th} ${styles.sortable} ${styles.colRight}`}
+                className={`${styles.th} ${styles.sortable} ${styles.colNum}`}
                 onClick={() => handleSort("trade_price")}
               >
-                현재가 {getSortIcon("trade_price")}
+                <span>현재가</span>
+                <SortIcon column="trade_price" sortConfig={sortConfig} />
               </th>
               <th
-                className={`${styles.th} ${styles.sortable} ${styles.colRight}`}
+                className={`${styles.th} ${styles.sortable} ${styles.colNum}`}
                 onClick={() => handleSort("signed_change_rate")}
               >
-                전일대비(%) {getSortIcon("signed_change_rate")}
+                <span>전일대비</span>
+                <SortIcon column="signed_change_rate" sortConfig={sortConfig} />
               </th>
               <th
-                className={`${styles.th} ${styles.sortable} ${styles.colRight}`}
+                className={`${styles.th} ${styles.sortable} ${styles.colNum}`}
                 onClick={() => handleSort("signed_change_price")}
               >
-                등락액 {getSortIcon("signed_change_price")}
+                <span>등락액</span>
+                <SortIcon column="signed_change_price" sortConfig={sortConfig} />
               </th>
               <th
-                className={`${styles.th} ${styles.sortable} ${styles.colRight}`}
+                className={`${styles.th} ${styles.sortable} ${styles.colNum}`}
                 onClick={() => handleSort("acc_trade_price_24h")}
               >
-                거래대금(24h) {getSortIcon("acc_trade_price_24h")}
+                <span>거래대금(24h)</span>
+                <SortIcon column="acc_trade_price_24h" sortConfig={sortConfig} />
               </th>
             </tr>
           </thead>
           <tbody>
-            {displayData.map((market) => {
-              const ticker = market.ticker;
+            {displayData.map((m) => {
+              const t = m.ticker;
               const changeClass =
-                ticker && ticker.signed_change_rate > 0
+                t && t.signed_change_rate > 0
                   ? styles.rise
-                  : ticker && ticker.signed_change_rate < 0
+                  : t && t.signed_change_rate < 0
                     ? styles.fall
                     : "";
-
               return (
-                <tr key={market.market} className={styles.row}>
+                <tr key={m.market} className={styles.row}>
                   <td className={`${styles.td} ${styles.colName}`}>
-                    <div className={styles.marketInfo}>
-                      <span className={styles.koreanName}>
-                        {market.korean_name}
-                      </span>
-                      <span className={styles.symbol}>{market.market}</span>
+                    <div className={styles.coinInfo}>
+                      <span className={styles.coinName}>{m.korean_name}</span>
+                      <span className={styles.coinSymbol}>{m.market}</span>
                     </div>
-                    {market.market_warning === "CAUTION" && (
-                      <span className={styles.warningBadge}>유의</span>
+                    {m.market_warning === "CAUTION" && (
+                      <span className={styles.badge}>유의</span>
                     )}
                   </td>
-                  <td className={`${styles.td} ${styles.colRight} ${changeClass}`}>
-                    {ticker ? formatPrice(ticker.trade_price) : "—"}
+                  <td className={`${styles.td} ${styles.colNum} ${changeClass}`}>
+                    {t ? formatPrice(t.trade_price) : <span className={styles.empty}>—</span>}
                   </td>
-                  <td className={`${styles.td} ${styles.colRight} ${changeClass}`}>
-                    {ticker ? formatChangeRate(ticker.signed_change_rate) : "—"}
+                  <td className={`${styles.td} ${styles.colNum} ${changeClass}`}>
+                    {t ? (
+                      <div className={`${styles.rateCell} ${changeClass}`}>
+                        {formatRate(t.signed_change_rate)}
+                      </div>
+                    ) : (
+                      <span className={styles.empty}>—</span>
+                    )}
                   </td>
-                  <td className={`${styles.td} ${styles.colRight} ${changeClass}`}>
-                    {ticker
-                      ? formatChangePrice(ticker.signed_change_price)
-                      : "—"}
+                  <td className={`${styles.td} ${styles.colNum} ${changeClass}`}>
+                    {t ? formatChangePrice(t.signed_change_price) : <span className={styles.empty}>—</span>}
                   </td>
-                  <td className={`${styles.td} ${styles.colRight}`}>
-                    {ticker
-                      ? `${formatTradeVolume(ticker.acc_trade_price_24h)}억`
-                      : "—"}
+                  <td className={`${styles.td} ${styles.colNum}`}>
+                    {t ? (
+                      <span className={styles.volume}>{formatVolume(t.acc_trade_price_24h)}<span className={styles.volumeUnit}>억</span></span>
+                    ) : (
+                      <span className={styles.empty}>—</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -284,41 +281,30 @@ export default function MarketTable({ markets }: MarketTableProps) {
         </table>
       </div>
 
+      {/* Pagination */}
       {!isSearching && totalPages > 1 && (
         <div className={styles.pagination}>
           <button
             className={styles.pageBtn}
             onClick={() => setCurrentPage(1)}
             disabled={currentPage === 1}
-          >
-            «
-          </button>
+          >«</button>
           <button
             className={styles.pageBtn}
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-          >
-            ‹
-          </button>
-          <span className={styles.pageInfo}>
-            {currentPage} / {totalPages}
-          </span>
+          >‹</button>
+          <span className={styles.pageInfo}>{currentPage} / {totalPages}</span>
           <button
             className={styles.pageBtn}
-            onClick={() =>
-              setCurrentPage((p) => Math.min(totalPages, p + 1))
-            }
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-          >
-            ›
-          </button>
+          >›</button>
           <button
             className={styles.pageBtn}
             onClick={() => setCurrentPage(totalPages)}
             disabled={currentPage === totalPages}
-          >
-            »
-          </button>
+          >»</button>
         </div>
       )}
     </div>
