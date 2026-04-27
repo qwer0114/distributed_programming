@@ -1,0 +1,239 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Search result ─── */
+.searchResult {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.searchResultCount {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* ─── Table panel ─── */
+.tablePanel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* ─── Header ─── */
+.th {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  color: var(--text-muted);
+}
+
+.th > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.colName {
+  text-align: left;
+  width: 260px;
+}
+
+.colNum {
+  text-align: right;
+}
+
+.sortIconInactive,
+.sortIconActive {
+  flex-shrink: 0;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.sortIconActive {
+  color: var(--blue);
+}
+
+/* ─── Rows ─── */
+.row {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.td {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+/* ─── Coin name cell ─── */
+.coinInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-right: 6px;
+}
+
+.colName .td,
+.colName {
+  display: table-cell;
+}
+
+/* When colName td, lay items horizontally */
+td.colName {
+  display: table-cell;
+}
+
+td.colName .coinInfo {
+  display: inline-flex;
+}
+
+.coinName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.coinSymbol {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+/* ─── Name + badge layout ─── */
+td.colName {
+  display: table-cell;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 5px;
+  background: rgba(240, 180, 50, 0.12);
+  color: #c49a0a;
+  border: 1px solid rgba(240, 180, 50, 0.25);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* ─── Color: rise / fall ─── */
+.rise {
+  color: var(--rise);
+}
+
+.fall {
+  color: var(--fall);
+}
+
+/* ─── Rate cell ─── */
+.rateCell {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rateCell.rise {
+  background: var(--rise-bg);
+  color: var(--rise);
+}
+
+.rateCell.fall {
+  background: var(--fall-bg);
+  color: var(--fall);
+}
+
+/* ─── Volume ─── */
+.volume {
+  color: var(--text-muted);
+}
+
+.volumeUnit {
+  font-size: 10px;
+  margin-left: 1px;
+  opacity: 0.6;
+}
+
+.empty {
+  color: var(--text-dim);
+}
+
+/* ─── Pagination ─── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.pageBtn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-md);
+  color: var(--text);
+}
+
+.pageBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  font-size: 12px;
+  color: var(--text-dim);
+  min-width: 56px;
+  text-align: center;
+}
