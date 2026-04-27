@@ -1,0 +1,249 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+/* ─── Header ─── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ─── WebSocket Status ─── */
+.wsStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.wsStatus.connected {
+  background: #e6f9f0;
+  color: #0b8a46;
+}
+
+.wsStatus.connecting {
+  background: #fff4e5;
+  color: #b36200;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wsStatus.connected .statusDot {
+  background: #0b8a46;
+  box-shadow: 0 0 0 2px rgba(11, 138, 70, 0.3);
+  animation: pulse 2s infinite;
+}
+
+.wsStatus.connecting .statusDot {
+  background: #b36200;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(11, 138, 70, 0.3); }
+  50%       { box-shadow: 0 0 0 4px rgba(11, 138, 70, 0.1); }
+}
+
+/* ─── Search ─── */
+.searchInput {
+  width: 240px;
+  padding: 7px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.searchInput:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.searchResult {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 8px;
+}
+
+/* ─── Table ─── */
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.th {
+  padding: 10px 14px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sortable {
+  cursor: pointer;
+}
+
+.sortable:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.sortIcon {
+  display: inline-block;
+  margin-left: 4px;
+  opacity: 0.4;
+  font-size: 11px;
+}
+
+.sortActive {
+  opacity: 1;
+  color: #3b82f6;
+}
+
+.colName {
+  width: 260px;
+  text-align: left;
+}
+
+.colRight {
+  text-align: right;
+}
+
+/* ─── Rows ─── */
+.row {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.1s;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: #f9fafb;
+}
+
+.td {
+  padding: 10px 14px;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Market name cell ─── */
+.marketInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.koreanName {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.symbol {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.warningBadge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 5px;
+  background: #fff3cd;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ─── Color: rise / fall ─── */
+.rise {
+  color: #d63031;
+}
+
+.fall {
+  color: #0984e3;
+}
+
+/* ─── Pagination ─── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+}
+
+.pageBtn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.pageBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  font-size: 13px;
+  color: #6b7280;
+  min-width: 60px;
+  text-align: center;
+}
