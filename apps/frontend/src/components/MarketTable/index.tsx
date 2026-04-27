@@ -54,20 +54,35 @@ function formatChangePrice(price: number): string {
   return `${sign}${formatPrice(Math.abs(price))}`;
 }
 
-function SortIcon({ column, sortConfig }: {
+function SortIcon({
+  column,
+  sortConfig,
+}: {
   column: SortColumn;
   sortConfig: { column: SortColumn; direction: SortDirection };
 }) {
   if (sortConfig.column !== column) {
     return (
-      <svg className={styles.sortIconInactive} width="10" height="10" viewBox="0 0 10 14" fill="none">
+      <svg
+        className={styles.sortIconInactive}
+        width="10"
+        height="10"
+        viewBox="0 0 10 14"
+        fill="none"
+      >
         <path d="M5 1L1 5h8L5 1z" fill="currentColor" opacity="0.3" />
         <path d="M5 13L9 9H1l4 4z" fill="currentColor" opacity="0.3" />
       </svg>
     );
   }
   return (
-    <svg className={styles.sortIconActive} width="10" height="10" viewBox="0 0 10 14" fill="none">
+    <svg
+      className={styles.sortIconActive}
+      width="10"
+      height="10"
+      viewBox="0 0 10 14"
+      fill="none"
+    >
       {sortConfig.direction === "asc" ? (
         <path d="M5 1L1 6h8L5 1z" fill="currentColor" />
       ) : (
@@ -79,7 +94,9 @@ function SortIcon({ column, sortConfig }: {
 
 export default function MarketTable({ markets }: MarketTableProps) {
   const tickerMapRef = useRef<Map<string, UpbitTicker>>(new Map());
-  const [tickerMap, setTickerMap] = useState<Map<string, UpbitTicker>>(new Map());
+  const [tickerMap, setTickerMap] = useState<Map<string, UpbitTicker>>(
+    new Map(),
+  );
   const searchQuery = useAtomValue(searchQueryAtom);
   const setWsStatus = useSetAtom(wsStatusAtom);
   const [sortConfig, setSortConfig] = useState<{
@@ -113,7 +130,8 @@ export default function MarketTable({ markets }: MarketTableProps) {
   });
 
   const mergedData = useMemo<MergedMarket[]>(
-    () => markets.map((m) => ({ ...m, ticker: tickerMap.get(m.market) ?? null })),
+    () =>
+      markets.map((m) => ({ ...m, ticker: tickerMap.get(m.market) ?? null })),
     [markets, tickerMap],
   );
 
@@ -183,14 +201,12 @@ export default function MarketTable({ markets }: MarketTableProps) {
 
   return (
     <div className={styles.container}>
-      {/* Search result count */}
       {isSearching && (
         <p className={styles.searchResult}>
-          <span className={styles.searchResultCount}>{sortedData.length}</span>개 검색됨
+          <span className={styles.searchResultCount}>{sortedData.length}</span>
+          개 검색됨
         </p>
       )}
-
-      {/* Table */}
       <div className={styles.tablePanel}>
         <table className={styles.table}>
           <thead>
@@ -221,14 +237,20 @@ export default function MarketTable({ markets }: MarketTableProps) {
                 onClick={() => handleSort("signed_change_price")}
               >
                 <span>등락액</span>
-                <SortIcon column="signed_change_price" sortConfig={sortConfig} />
+                <SortIcon
+                  column="signed_change_price"
+                  sortConfig={sortConfig}
+                />
               </th>
               <th
                 className={`${styles.th} ${styles.sortable} ${styles.colNum}`}
                 onClick={() => handleSort("acc_trade_price_24h")}
               >
                 <span>거래대금(24h)</span>
-                <SortIcon column="acc_trade_price_24h" sortConfig={sortConfig} />
+                <SortIcon
+                  column="acc_trade_price_24h"
+                  sortConfig={sortConfig}
+                />
               </th>
             </tr>
           </thead>
@@ -245,17 +267,32 @@ export default function MarketTable({ markets }: MarketTableProps) {
                 <tr key={m.market} className={styles.row}>
                   <td className={`${styles.td} ${styles.colName}`}>
                     <div className={styles.coinInfo}>
-                      <span className={styles.coinName}>{m.korean_name}</span>
-                      <span className={styles.coinSymbol}>{m.market}</span>
+                      <div className={styles.coin}>
+                        <img
+                          alt="coin_image"
+                          src={`https://static.upbit.com/logos/${m.market.split("-")[1]}.png`}
+                          width={20}
+                          height={20}
+                        />
+                        <span className={styles.coinName}>{m.korean_name}</span>
+                      </div>
                     </div>
-                    {m.market_warning === "CAUTION" && (
-                      <span className={styles.badge}>유의</span>
+                    {m.market_event?.warning && (
+                      <span className={styles.badge}>주의</span>
                     )}
                   </td>
-                  <td className={`${styles.td} ${styles.colNum} ${changeClass}`}>
-                    {t ? formatPrice(t.trade_price) : <span className={styles.empty}>—</span>}
+                  <td
+                    className={`${styles.td} ${styles.colNum} ${changeClass}`}
+                  >
+                    {t ? (
+                      formatPrice(t.trade_price)
+                    ) : (
+                      <span className={styles.empty}>—</span>
+                    )}
                   </td>
-                  <td className={`${styles.td} ${styles.colNum} ${changeClass}`}>
+                  <td
+                    className={`${styles.td} ${styles.colNum} ${changeClass}`}
+                  >
                     {t ? (
                       <div className={`${styles.rateCell} ${changeClass}`}>
                         {formatRate(t.signed_change_rate)}
@@ -264,12 +301,21 @@ export default function MarketTable({ markets }: MarketTableProps) {
                       <span className={styles.empty}>—</span>
                     )}
                   </td>
-                  <td className={`${styles.td} ${styles.colNum} ${changeClass}`}>
-                    {t ? formatChangePrice(t.signed_change_price) : <span className={styles.empty}>—</span>}
+                  <td
+                    className={`${styles.td} ${styles.colNum} ${changeClass}`}
+                  >
+                    {t ? (
+                      formatChangePrice(t.signed_change_price)
+                    ) : (
+                      <span className={styles.empty}>—</span>
+                    )}
                   </td>
                   <td className={`${styles.td} ${styles.colNum}`}>
                     {t ? (
-                      <span className={styles.volume}>{formatVolume(t.acc_trade_price_24h)}<span className={styles.volumeUnit}>억</span></span>
+                      <span className={styles.volume}>
+                        {formatVolume(t.acc_trade_price_24h)}
+                        <span className={styles.volumeUnit}>억</span>
+                      </span>
                     ) : (
                       <span className={styles.empty}>—</span>
                     )}
@@ -288,23 +334,33 @@ export default function MarketTable({ markets }: MarketTableProps) {
             className={styles.pageBtn}
             onClick={() => setCurrentPage(1)}
             disabled={currentPage === 1}
-          >«</button>
+          >
+            «
+          </button>
           <button
             className={styles.pageBtn}
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-          >‹</button>
-          <span className={styles.pageInfo}>{currentPage} / {totalPages}</span>
+          >
+            ‹
+          </button>
+          <span className={styles.pageInfo}>
+            {currentPage} / {totalPages}
+          </span>
           <button
             className={styles.pageBtn}
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-          >›</button>
+          >
+            ›
+          </button>
           <button
             className={styles.pageBtn}
             onClick={() => setCurrentPage(totalPages)}
             disabled={currentPage === totalPages}
-          >»</button>
+          >
+            »
+          </button>
         </div>
       )}
     </div>
