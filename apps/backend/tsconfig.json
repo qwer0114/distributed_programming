@@ -11,7 +11,8 @@
     "incremental": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
+    "resolvePackageJsonExports": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"],
