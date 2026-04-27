@@ -1,45 +1,3 @@
-import type { ApiResponse, ApiError, PaginatedResponse } from "@repo/types";
-
-export function createSuccessResponse<T>(
-  data: T,
-  message?: string
-): ApiResponse<T> {
-  return {
-    data,
-    success: true,
-    message,
-    timestamp: new Date().toISOString(),
-  };
-}
-
-export function createErrorResponse(
-  statusCode: number,
-  message: string,
-  error: string
-): ApiError {
-  return {
-    statusCode,
-    message,
-    error,
-    timestamp: new Date().toISOString(),
-  };
-}
-
-export function createPaginatedResponse<T>(
-  data: T[],
-  total: number,
-  page: number,
-  limit: number
-): PaginatedResponse<T> {
-  return {
-    data,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  };
-}
-
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -53,7 +11,11 @@ export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 }
 
-export function truncate(text: string, maxLength: number, suffix = "..."): string {
+export function truncate(
+  text: string,
+  maxLength: number,
+  suffix = "...",
+): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength - suffix.length) + suffix;
 }
@@ -73,7 +35,7 @@ export function isValidDate(date: unknown): date is Date {
 
 export function omit<T extends object, K extends keyof T>(
   obj: T,
-  keys: K[]
+  keys: K[],
 ): Omit<T, K> {
   const result = { ...obj };
   for (const key of keys) {
@@ -84,7 +46,7 @@ export function omit<T extends object, K extends keyof T>(
 
 export function pick<T extends object, K extends keyof T>(
   obj: T,
-  keys: K[]
+  keys: K[],
 ): Pick<T, K> {
   const result = {} as Pick<T, K>;
   for (const key of keys) {
