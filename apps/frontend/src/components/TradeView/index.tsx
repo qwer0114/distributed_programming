@@ -48,11 +48,13 @@ export default function TradeView({ market }: TradeViewProps) {
     <div className={styles.wrapper}>
       <CoinHeader market={market} ticker={ticker} />
       <div className={styles.layout}>
-        <div className={styles.left}>
+        <div className={styles.chartCol}>
           <Chart market={market.market} />
         </div>
-        <div className={styles.right}>
+        <div className={styles.orderbookCol}>
           <OrderBook market={market.market} />
+        </div>
+        <div className={styles.formCol}>
           <OrderForm market={market} ticker={ticker} onSubmit={showToast} />
         </div>
       </div>
