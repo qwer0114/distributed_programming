@@ -272,3 +272,8 @@ src/
 4. **쿼리 파라미터 있는 요청** → `buildQueryString().raw`로 SHA512 해시 생성 필수
 5. **Rate Limit** → 초당 요청 제한 있음, 참조: https://docs.upbit.com/kr/reference/rate-limits.md
 6. **WebSocket 재연결** → `onclose`에서 반드시 재연결 로직 구현
+
+## 차트 라이브러리
+
+- 차트는 반드시 TradingView Lightweight Charts 라이브러리를 사용할 것
+- `lightweight-charts` 패키지 사용 (공식: https://tradingview.github.io/lightweight-charts/)
