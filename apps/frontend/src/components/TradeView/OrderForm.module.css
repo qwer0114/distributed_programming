@@ -11,11 +11,12 @@
 
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   border-bottom: 1px solid var(--border);
 }
 
 .tab {
+  position: relative;
   padding: 12px 0;
   font-size: 13px;
   font-weight: 700;
@@ -23,6 +24,10 @@
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .tabBuyActive {
@@ -33,6 +38,25 @@
 .tabSellActive {
   color: var(--fall);
   border-bottom-color: var(--fall);
+}
+
+.tabPendingActive {
+  color: var(--text);
+  border-bottom-color: var(--text-muted);
+}
+
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .body {
@@ -180,4 +204,153 @@
 
 .submitSell {
   background: var(--fall);
+}
+
+.pendingBody {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 24px 0;
+}
+
+.pendingList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pendingItem {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pendingHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pendingSide {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pendingBuy {
+  background: var(--rise-bg);
+  color: var(--rise);
+}
+
+.pendingSell {
+  background: var(--fall-bg);
+  color: var(--fall);
+}
+
+.pendingMarket {
+  flex: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pendingMarketCode {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.pendingTime {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.pendingMeta {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.pendingType,
+.pendingStatus {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.pendingGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: 4px;
+  column-gap: 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.pendingGrid dt {
+  color: var(--text-dim);
+}
+
+.pendingGrid dd {
+  margin: 0;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.pendingUnit {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-left: 2px;
+}
+
+.cancelBtn {
+  margin-top: 4px;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 5px;
+}
+
+.cancelBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--border-md);
 }
