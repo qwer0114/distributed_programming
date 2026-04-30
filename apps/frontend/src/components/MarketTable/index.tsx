@@ -9,6 +9,7 @@ import {
   useTransition,
 } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
+import { useRouter } from "next/navigation";
 import type { Market } from "@repo/types";
 import { useUpbitSocket } from "@/hooks/useUpbitSocket";
 import type { UpbitTicker } from "@/types/ticker";
@@ -99,6 +100,7 @@ export default function MarketTable({ markets }: MarketTableProps) {
   );
   const searchQuery = useAtomValue(searchQueryAtom);
   const setWsStatus = useSetAtom(wsStatusAtom);
+  const router = useRouter();
   const [sortConfig, setSortConfig] = useState<{
     column: SortColumn;
     direction: SortDirection;
@@ -264,7 +266,11 @@ export default function MarketTable({ markets }: MarketTableProps) {
                     ? styles.fall
                     : "";
               return (
-                <tr key={m.market} className={styles.row}>
+                <tr
+                  key={m.market}
+                  className={styles.row}
+                  onClick={() => router.push(`/trade/${m.market}`)}
+                >
                   <td className={`${styles.td} ${styles.colName}`}>
                     <div className={styles.coinInfo}>
                       <div className={styles.coin}>

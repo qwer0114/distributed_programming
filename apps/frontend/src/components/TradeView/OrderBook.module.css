@@ -1,0 +1,138 @@
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  padding: 4px 6px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.headRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 6px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.headSize {
+  text-align: left;
+}
+
+.headPrice {
+  text-align: center;
+}
+
+.headBar {
+  text-align: right;
+}
+
+.askList,
+.bidList {
+  display: flex;
+  flex-direction: column;
+}
+
+.askList {
+  flex-direction: column;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  transition: background 0.1s;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.size {
+  text-align: left;
+  color: var(--text-muted);
+}
+
+.price {
+  text-align: center;
+  font-weight: 600;
+}
+
+.ask .price {
+  color: var(--rise);
+}
+
+.bid .price {
+  color: var(--fall);
+}
+
+.barWrap {
+  position: relative;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  opacity: 0.4;
+}
+
+.askBar {
+  background: rgba(240, 68, 82, 0.45);
+}
+
+.bidBar {
+  background: rgba(79, 143, 255, 0.45);
+}
+
+.divider {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  margin: 4px 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.dividerPrice {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
