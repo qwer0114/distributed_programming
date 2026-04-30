@@ -10,6 +10,7 @@
 }
 
 .tabs {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   border-bottom: 1px solid var(--border);
@@ -23,26 +24,52 @@
   color: var(--text-dim);
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  transition: color 0.18s ease;
+}
+
+.tab:hover {
+  color: var(--text-muted);
 }
 
 .tabBuyActive {
   color: var(--rise);
-  border-bottom-color: var(--rise);
 }
 
 .tabSellActive {
   color: var(--fall);
-  border-bottom-color: var(--fall);
 }
 
 .tabPendingActive {
   color: var(--text);
-  border-bottom-color: var(--text-muted);
+}
+
+.indicator {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: calc(100% / 3);
+  height: 2px;
+  border-radius: 2px;
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease;
+  pointer-events: none;
+}
+
+.indicatorBuy {
+  background: var(--rise);
+}
+
+.indicatorSell {
+  background: var(--fall);
+}
+
+.indicatorPending {
+  background: var(--text-muted);
 }
 
 .tabBadge {
@@ -64,6 +91,18 @@
   flex-direction: column;
   gap: 12px;
   padding: 14px;
+  animation: fadeIn 0.24s ease both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .balanceRow {
@@ -213,6 +252,7 @@
   gap: 10px;
   flex: 1;
   min-height: 0;
+  animation: fadeIn 0.24s ease both;
 }
 
 .empty {
@@ -243,6 +283,18 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  animation: itemSlideIn 0.22s ease both;
+}
+
+@keyframes itemSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .pendingHead {

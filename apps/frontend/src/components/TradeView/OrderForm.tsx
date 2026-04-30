@@ -124,6 +124,14 @@ export default function OrderForm({ market, ticker, onSubmit }: OrderFormProps) 
     setPendingOrders((prev) => prev.filter((o) => o.id !== id));
   };
 
+  const tabIndex = tab === "buy" ? 0 : tab === "sell" ? 1 : 2;
+  const indicatorClass =
+    tab === "buy"
+      ? styles.indicatorBuy
+      : tab === "sell"
+        ? styles.indicatorSell
+        : styles.indicatorPending;
+
   return (
     <div className={styles.panel}>
       <div className={styles.tabs}>
@@ -151,10 +159,14 @@ export default function OrderForm({ market, ticker, onSubmit }: OrderFormProps) 
             <span className={styles.tabBadge}>{pendingOrders.length}</span>
           )}
         </button>
+        <span
+          className={`${styles.indicator} ${indicatorClass}`}
+          style={{ transform: `translateX(${tabIndex * 100}%)` }}
+        />
       </div>
 
       {isFormTab && (
-        <div className={styles.body}>
+        <div key={tab} className={styles.body}>
           <div className={styles.balanceRow}>
             <span className={styles.balanceLabel}>
               {tab === "buy" ? "주문가능" : "보유"}
@@ -264,7 +276,7 @@ export default function OrderForm({ market, ticker, onSubmit }: OrderFormProps) 
       )}
 
       {tab === "pending" && (
-        <div className={styles.pendingBody}>
+        <div key="pending" className={styles.pendingBody}>
           {pendingOrders.length === 0 ? (
             <div className={styles.empty}>대기 중인 주문이 없어요</div>
           ) : (
