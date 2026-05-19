@@ -1,3 +1,7 @@
+import * as readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+
+import { Candle } from './domain/coin/candle.entity';
 import { Coin } from './domain/coin/coin.entity';
 import { OrderBook, OrderBookUnit } from './domain/coin/order-book.entity';
 import { Member } from './domain/user/member.entity';
@@ -45,9 +49,22 @@ const MOCK_MARKETS = [
   { market: 'KRW-XRP', korean_name: '리플', english_name: 'Ripple', market_warning: 'NONE' },
   { market: 'KRW-SOL', korean_name: '솔라나', english_name: 'Solana', market_warning: 'NONE' },
   { market: 'KRW-DOGE', korean_name: '도지코인', english_name: 'Dogecoin', market_warning: 'CAUTION' },
+  { market: 'KRW-ADA', korean_name: '에이다', english_name: 'Cardano', market_warning: 'NONE' },
+  { market: 'KRW-AVAX', korean_name: '아발란체', english_name: 'Avalanche', market_warning: 'NONE' },
 ];
 
-function makeMockTicker(market: string, basePrice: number): UpbitTickerRaw {
+const MOCK_PRICES: Record<string, number> = {
+  'KRW-BTC': 145_320_000,
+  'KRW-ETH': 5_234_000,
+  'KRW-XRP': 850,
+  'KRW-SOL': 312_000,
+  'KRW-DOGE': 520,
+  'KRW-ADA': 720,
+  'KRW-AVAX': 48_000,
+};
+
+function makeMockTicker(market: string): UpbitTickerRaw {
+  const basePrice = MOCK_PRICES[market] ?? 10_000;
   return {
     market,
     trade_price: basePrice,
@@ -62,16 +79,8 @@ function makeMockTicker(market: string, basePrice: number): UpbitTickerRaw {
   };
 }
 
-const MOCK_TICKERS: Record<string, UpbitTickerRaw> = {
-  'KRW-BTC': makeMockTicker('KRW-BTC', 145_320_000),
-  'KRW-ETH': makeMockTicker('KRW-ETH', 5_234_000),
-  'KRW-XRP': makeMockTicker('KRW-XRP', 850),
-  'KRW-SOL': makeMockTicker('KRW-SOL', 312_000),
-  'KRW-DOGE': makeMockTicker('KRW-DOGE', 520),
-};
-
 function makeMockCandles(market: string, unit: number, count: number): UpbitCandleRaw[] {
-  const base = MOCK_TICKERS[market]?.trade_price ?? 100_000;
+  const base = MOCK_PRICES[market] ?? 100_000;
   return Array.from({ length: count }, (_, i) => {
     const t = new Date(Date.now() - i * unit * 60_000);
     const kst = t.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '').replace('Z', '');
@@ -89,17 +98,17 @@ function makeMockCandles(market: string, unit: number, count: number): UpbitCand
 }
 
 function makeMockOrderbook(market: string): UpbitOrderbookRaw {
-  const base = MOCK_TICKERS[market]?.trade_price ?? 100_000;
+  const base = MOCK_PRICES[market] ?? 100_000;
   return {
     market,
     timestamp: Date.now(),
     total_ask_size: 5.432,
     total_bid_size: 7.891,
-    orderbook_units: Array.from({ length: 5 }, (_, i) => ({
+    orderbook_units: Array.from({ length: 15 }, (_, i) => ({
       ask_price: base + (i + 1) * 1_000,
-      ask_size: 0.5 - i * 0.05,
+      ask_size: Math.max(0.05, 0.5 - i * 0.03),
       bid_price: base - (i + 1) * 1_000,
-      bid_size: 0.6 - i * 0.05,
+      bid_size: Math.max(0.05, 0.6 - i * 0.03),
     })),
   };
 }
@@ -109,19 +118,22 @@ function makeMockOrderbook(market: string): UpbitOrderbookRaw {
 const BASE = 'https://api.upbit.com/v1';
 let usingMock = false;
 
-async function upbitGet<T>(path: string, mockFn: () => T): Promise<T> {
-  if (usingMock) return mockFn();
+async function tryFetch<T>(path: string): Promise<T | null> {
+  if (usingMock) return null;
   try {
-    const res = await fetch(`${BASE}${path}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     return JSON.parse(text) as T;
   } catch {
     if (!usingMock) {
       usingMock = true;
-      console.log('  ⚠️  Upbit API 접근 불가 → 목(mock) 데이터로 대체합니다.\n');
+      console.log('\n  ⚠️  Upbit API 접근 불가 → mock 데이터로 동작합니다.');
     }
-    return mockFn();
+    return null;
   }
 }
 
@@ -129,296 +141,284 @@ function fmt(n: number): string {
   return Math.round(n).toLocaleString('ko-KR');
 }
 
-function header(label: string): void {
-  console.log('\n' + '═'.repeat(52));
-  console.log(label);
-  console.log('═'.repeat(52));
-}
+// ─── CLI 상태 ─────────────────────────────────────────────────────────────────
 
-// ─── UseCase Scenarios ────────────────────────────────────────────────────────
+const rl = readline.createInterface({ input, output });
 
-async function runUC1(guest: NonMember): Promise<Coin[]> {
-  header('[UC1] 코인 목록 조회');
+const guest = new NonMember('guest-001', '비회원');
+let loggedInMember: Member | null = null;
+let cachedCoins: Coin[] | null = null;
 
-  let coins: Coin[];
+async function getCoins(): Promise<Coin[]> {
+  if (cachedCoins) return cachedCoins;
   try {
-    coins = await guest.viewCoinList();
+    cachedCoins = await guest.viewCoinList();
   } catch {
     if (!usingMock) {
       usingMock = true;
-      console.log('  ⚠️  Upbit API 접근 불가 → 목(mock) 데이터로 대체합니다.\n');
+      console.log('  ⚠️  Upbit API 접근 불가 → mock 데이터로 동작합니다.');
     }
-    coins = MOCK_MARKETS.map(m => new Coin(m.market, m.korean_name, m.english_name, m.market_warning));
+    cachedCoins = MOCK_MARKETS.map(m => new Coin(m.market, m.korean_name, m.english_name, m.market_warning));
   }
+  return cachedCoins;
+}
 
-  const top5Markets = coins.slice(0, 5).map(c => c.getMarketCode()).join(',');
-  const tickers = await upbitGet<UpbitTickerRaw[]>(
-    `/ticker?markets=${top5Markets}`,
-    () => coins.slice(0, 5).map(c => MOCK_TICKERS[c.getMarketCode()] ?? makeMockTicker(c.getMarketCode(), 10_000)),
-  );
+async function getPrice(market: string): Promise<number> {
+  const data = await tryFetch<UpbitTickerRaw[]>(`/ticker?markets=${market}`);
+  if (data && data[0]) return data[0].trade_price;
+  return MOCK_PRICES[market] ?? makeMockTicker(market).trade_price;
+}
 
+// ─── UseCase 핸들러 ──────────────────────────────────────────────────────────
+
+async function handleUC1(): Promise<void> {
+  console.log('\n[UC1] 코인 목록 조회');
+  const coins = await getCoins();
+  const limit = Math.min(coins.length, 10);
+  const top = coins.slice(0, limit);
+  const codes = top.map(c => c.getMarketCode()).join(',');
+  const raw = await tryFetch<UpbitTickerRaw[]>(`/ticker?markets=${codes}`);
+  const tickers = raw ?? top.map(c => makeMockTicker(c.getMarketCode()));
+
+  console.log(`\n  상위 ${limit}개 KRW 마켓:`);
   const coinMap = new Map(coins.map(c => [c.getMarketCode(), c]));
   tickers.forEach((t, i) => {
     const coin = coinMap.get(t.market);
     if (!coin) return;
     const sign = t.change === 'FALL' ? '-' : t.change === 'RISE' ? '+' : '';
     console.log(
-      `  ${i + 1}. ${coin.getKoreanName()} (${t.market})  ` +
-      `현재가: ${fmt(t.trade_price)}원  등락률: ${sign}${(t.change_rate * 100).toFixed(2)}%`,
+      `  ${(i + 1).toString().padStart(2)}. ${coin.getKoreanName().padEnd(8)} (${t.market.padEnd(10)})  ` +
+      `현재가: ${fmt(t.trade_price).padStart(14)}원  등락률: ${sign}${(t.change_rate * 100).toFixed(2)}%`,
     );
   });
-
-  console.log(`\n  ✅ 총 ${coins.length}개 KRW 마켓 조회 완료`);
-  return coins;
+  console.log(`\n  ✅ 총 ${coins.length}개 KRW 마켓`);
 }
 
-async function runUC2_normal(guest: NonMember, coins: Coin[]): Promise<void> {
-  header('[UC2] 코인 검색 — 정상: "비트코인" 검색');
-
-  const result = guest.searchCoin(coins, '비트코인');
-  console.log('  검색어: "비트코인"');
+async function handleUC2(): Promise<void> {
+  console.log('\n[UC2] 코인 검색');
+  const query = (await rl.question('  검색어 (코인명/심볼): ')).trim();
+  if (!query) {
+    console.log('  검색어를 입력하지 않았습니다.');
+    return;
+  }
+  const coins = await getCoins();
+  const result = guest.searchCoin(coins, query);
   if (result) {
-    console.log(`  결과: ${result.getKoreanName()} (${result.getMarketCode()}) — ${result.getEnglishName()}`);
-    console.log('  ✅ 완료');
+    console.log(`  ✅ 결과: ${result.getKoreanName()} (${result.getMarketCode()}) — ${result.getEnglishName()}`);
+  } else {
+    console.log(`  ❌ "${query}"에 해당하는 검색 결과가 없습니다.`);
   }
 }
 
-async function runUC2_A1(guest: NonMember, coins: Coin[]): Promise<void> {
-  header('[UC2-A1] 코인 검색 — 결과 없음');
+async function handleUC3(): Promise<void> {
+  console.log('\n[UC3] 차트 조회');
+  const market = (await rl.question('  마켓 코드 (예: KRW-BTC) [기본: KRW-BTC]: ')).trim() || 'KRW-BTC';
+  const unitStr = (await rl.question('  분봉 단위 (1/3/5/15/30/60/240) [기본: 1]: ')).trim() || '1';
+  const countStr = (await rl.question('  조회 개수 [기본: 5]: ')).trim() || '5';
+  const unit = parseInt(unitStr, 10);
+  const count = parseInt(countStr, 10);
 
-  const result = guest.searchCoin(coins, '없는코인XYZ');
-  console.log('  검색어: "없는코인XYZ"');
-  if (!result) {
-    console.log('  ❌ 검색 결과가 없습니다.');
-  }
-}
-
-async function runUC3_normal(guest: NonMember): Promise<void> {
-  header('[UC3] 차트 조회 — 정상: KRW-BTC 1분봉 5개');
-
-  let candles;
+  let candles: Candle[];
   try {
-    candles = await guest.viewChart('KRW-BTC', 1, 5);
+    candles = await guest.viewChart(market, unit, count);
   } catch {
-    const { Candle } = await import('./domain/coin/candle.entity');
-    candles = makeMockCandles('KRW-BTC', 1, 5).map(c =>
-      new Candle(c.market, c.candle_date_time_kst, c.opening_price, c.high_price, c.low_price, c.trade_price, c.candle_acc_trade_volume, c.unit ?? 1),
+    candles = makeMockCandles(market, unit, count).map(c =>
+      new Candle(c.market, c.candle_date_time_kst, c.opening_price, c.high_price, c.low_price, c.trade_price, c.candle_acc_trade_volume, c.unit ?? unit),
     );
   }
 
+  console.log(`\n  ${market} ${unit}분봉 ${candles.length}개:`);
   candles.forEach((c, i) => {
     console.log(
-      `  ${i + 1}. [${c.getCandleDateTimeKst()}] ` +
-      `시${fmt(c.getOpeningPrice())} 고${fmt(c.getHighPrice())} ` +
-      `저${fmt(c.getLowPrice())} 종${fmt(c.getTradePrice())}`,
+      `  ${(i + 1).toString().padStart(2)}. [${c.getCandleDateTimeKst()}]  ` +
+      `시${fmt(c.getOpeningPrice())} 고${fmt(c.getHighPrice())} 저${fmt(c.getLowPrice())} 종${fmt(c.getTradePrice())}`,
     );
   });
-  console.log('  ✅ 완료');
 }
 
-async function runUC3_A1(guest: NonMember): Promise<void> {
-  header('[UC3-A1] 차트 조회 — 기간 변경: KRW-BTC 60분봉 5개');
+async function handleUC4(): Promise<void> {
+  console.log('\n[UC4] 호가 조회');
+  const market = (await rl.question('  마켓 코드 [기본: KRW-BTC]: ')).trim() || 'KRW-BTC';
 
-  let candles;
+  let ob: OrderBook;
   try {
-    candles = await guest.viewChart('KRW-BTC', 60, 5);
+    ob = await guest.viewOrderBook(market);
   } catch {
-    const { Candle } = await import('./domain/coin/candle.entity');
-    candles = makeMockCandles('KRW-BTC', 60, 5).map(c =>
-      new Candle(c.market, c.candle_date_time_kst, c.opening_price, c.high_price, c.low_price, c.trade_price, c.candle_acc_trade_volume, c.unit ?? 60),
-    );
-  }
-
-  candles.forEach((c, i) => {
-    console.log(
-      `  ${i + 1}. [${c.getCandleDateTimeKst()}] ` +
-      `시${fmt(c.getOpeningPrice())} 고${fmt(c.getHighPrice())} ` +
-      `저${fmt(c.getLowPrice())} 종${fmt(c.getTradePrice())} (${c.getUnit()}분봉)`,
-    );
-  });
-  console.log('  ✅ 완료');
-}
-
-async function runUC4(guest: NonMember): Promise<void> {
-  header('[UC4] 호가 조회 — KRW-BTC');
-
-  let ob;
-  try {
-    ob = await guest.viewOrderBook('KRW-BTC');
-  } catch {
-    const raw = makeMockOrderbook('KRW-BTC');
+    const raw = makeMockOrderbook(market);
     const units = raw.orderbook_units.map(u => new OrderBookUnit(u.ask_price, u.ask_size, u.bid_price, u.bid_size));
     ob = new OrderBook(raw.market, raw.timestamp, raw.total_ask_size, raw.total_bid_size, units);
   }
 
-  const units = ob.getUnits().slice(0, 3);
-  console.log(`  마켓: ${ob.getMarket()}  매도잔량: ${ob.getTotalAskSize().toFixed(4)}  매수잔량: ${ob.getTotalBidSize().toFixed(4)}`);
-  console.log('  ─────────────────────────────────────────────');
-  console.log('    매도 호가              │  매수 호가');
-  console.log('  ─────────────────────────────────────────────');
-  units.forEach(u => {
+  console.log(`\n  ${ob.getMarket()}  매도잔량: ${ob.getTotalAskSize().toFixed(4)}  매수잔량: ${ob.getTotalBidSize().toFixed(4)}`);
+  console.log('  ─────────────────────────────────────────────────');
+  console.log('       매도 호가              매수 호가');
+  console.log('  ─────────────────────────────────────────────────');
+  ob.getUnits().slice(0, 5).forEach(u => {
     console.log(
-      `    ${fmt(u.getAskPrice())}원 (${u.getAskSize().toFixed(4)})  │  ${fmt(u.getBidPrice())}원 (${u.getBidSize().toFixed(4)})`,
+      `   ${fmt(u.getAskPrice()).padStart(12)}원 (${u.getAskSize().toFixed(4)})  ` +
+      `${fmt(u.getBidPrice()).padStart(12)}원 (${u.getBidSize().toFixed(4)})`,
     );
   });
-  console.log('  ─────────────────────────────────────────────');
+  console.log('  ─────────────────────────────────────────────────');
   console.log(`  스프레드: ${fmt(ob.getSpread())}원`);
-  console.log('  ✅ 완료');
 }
 
-async function runUC7_normal(member: Member): Promise<void> {
-  header('[UC7] 자산 충전 — 정상: 100,000원 충전');
-
-  const before = member.getWallet().getBalance();
-  member.charge(100_000);
-  const after = member.getWallet().getBalance();
-  console.log(`  충전 전: ${fmt(before)}원`);
-  console.log(`  충전 금액: 100,000원`);
-  console.log(`  충전 후: ${fmt(after)}원`);
-  console.log('  ✅ 완료');
+async function handleLogin(): Promise<void> {
+  if (loggedInMember) {
+    console.log(`\n  이미 로그인되어 있습니다: ${loggedInMember.getNickname()}`);
+    return;
+  }
+  console.log('\n[로그인]');
+  const email = (await rl.question('  이메일 [기본: test@example.com]: ')).trim() || 'test@example.com';
+  const nickname = email.split('@')[0];
+  loggedInMember = new Member(`user-${Date.now()}`, nickname, email, 'password123');
+  loggedInMember.login();
+  console.log(`  ✅ 로그인 성공: ${nickname} (${email})`);
 }
 
-async function runUC7_A1(member: Member): Promise<void> {
-  header('[UC7-A1] 자산 충전 — 최소금액 미만: 1,000원 충전 시도');
+async function handleLogout(): Promise<void> {
+  if (!loggedInMember) {
+    console.log('\n  로그인 상태가 아닙니다.');
+    return;
+  }
+  console.log(`\n  ✅ 로그아웃: ${loggedInMember.getNickname()}`);
+  loggedInMember.logout();
+  loggedInMember = null;
+}
 
+function requireMember(): Member | null {
+  if (!loggedInMember) {
+    console.log('\n  ❌ 로그인이 필요합니다. (메뉴 5: 로그인)');
+    return null;
+  }
+  return loggedInMember;
+}
+
+async function handleUC7(): Promise<void> {
+  const member = requireMember();
+  if (!member) return;
+  console.log('\n[UC7] 자산 충전');
+  const amountStr = (await rl.question('  충전 금액 (KRW): ')).trim();
+  const amount = parseFloat(amountStr);
+  if (isNaN(amount) || amount <= 0) {
+    console.log('  ❌ 올바른 금액을 입력해주세요.');
+    return;
+  }
   try {
-    member.charge(1_000);
+    const before = member.getWallet().getBalance();
+    member.charge(amount);
+    console.log(`  ✅ 충전 완료: ${fmt(before)}원 → ${fmt(member.getWallet().getBalance())}원`);
   } catch (e) {
-    console.log('  충전 시도: 1,000원');
     console.log(`  ❌ 오류: ${(e as Error).message}`);
   }
 }
 
-async function runUC5_normal(member: Member): Promise<void> {
-  header('[UC5] 매수 — 정상: KRW-BTC 0.0001 BTC 매수');
+async function handleUC5(): Promise<void> {
+  const member = requireMember();
+  if (!member) return;
+  console.log('\n[UC5] 코인 매수');
+  const market = (await rl.question('  마켓 코드 [기본: KRW-BTC]: ')).trim() || 'KRW-BTC';
+  const volumeStr = (await rl.question('  매수 수량: ')).trim();
+  const volume = parseFloat(volumeStr);
+  if (isNaN(volume) || volume <= 0) {
+    console.log('  ❌ 올바른 수량을 입력해주세요.');
+    return;
+  }
 
-  const tickers = await upbitGet<UpbitTickerRaw[]>(
-    '/ticker?markets=KRW-BTC',
-    () => [MOCK_TICKERS['KRW-BTC']],
-  );
-  const currentPrice = tickers[0].trade_price;
-  const volume = 0.0001;
-  const required = currentPrice * volume;
-
-  console.log(`  현재가: ${fmt(currentPrice)}원`);
-  console.log(`  주문 수량: ${volume} BTC  필요금액: ${fmt(required)}원`);
+  const currentPrice = await getPrice(market);
+  console.log(`\n  현재가: ${fmt(currentPrice)}원  필요금액: ${fmt(currentPrice * volume)}원`);
   console.log(`  주문 전 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
 
-  const history = member.buyCoin('KRW-BTC', volume, currentPrice);
-
-  console.log(`  주문 후 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
-  console.log(`  거래 ID: ${history.getUuid()}  수수료: ${history.getPaidFee().toFixed(0)}원`);
-  console.log('  ✅ 완료');
-}
-
-async function runUC5_A1(member: Member): Promise<void> {
-  header('[UC5-A1] 매수 — 잔액 부족: KRW-BTC 10 BTC 매수 시도');
-
-  const tickers = await upbitGet<UpbitTickerRaw[]>(
-    '/ticker?markets=KRW-BTC',
-    () => [MOCK_TICKERS['KRW-BTC']],
-  );
-  const currentPrice = tickers[0].trade_price;
-
   try {
-    member.buyCoin('KRW-BTC', 10, currentPrice);
+    const history = member.buyCoin(market, volume, currentPrice);
+    console.log(`  ✅ 매수 완료`);
+    console.log(`  주문 후 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
+    console.log(`  거래 ID: ${history.getUuid()}  수수료: ${history.getPaidFee().toFixed(0)}원`);
   } catch (e) {
-    console.log(`  주문 시도: 10 BTC (필요금액 ${fmt(currentPrice * 10)}원)`);
-    console.log(`  현재 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
     console.log(`  ❌ 오류: ${(e as Error).message}`);
   }
 }
 
-async function runUC5_A2(member: Member): Promise<void> {
-  header('[UC5-A2] 매수 — 최소수량 미만: 0.00001 BTC 매수 시도');
+async function handleUC6(): Promise<void> {
+  const member = requireMember();
+  if (!member) return;
+  console.log('\n[UC6] 코인 매도');
+  const market = (await rl.question('  마켓 코드 [기본: KRW-BTC]: ')).trim() || 'KRW-BTC';
+  const volumeStr = (await rl.question('  매도 수량 (all: 전량): ')).trim();
+
+  const currency = market.replace('KRW-', '');
+  const holding = member.viewPortfolio().getHolding(currency);
+  let volume: number;
+  if (volumeStr.toLowerCase() === 'all') {
+    if (!holding) {
+      console.log('  ❌ 보유 중인 코인이 없습니다.');
+      return;
+    }
+    volume = holding.balance;
+  } else {
+    volume = parseFloat(volumeStr);
+    if (isNaN(volume) || volume <= 0) {
+      console.log('  ❌ 올바른 수량을 입력해주세요.');
+      return;
+    }
+  }
+
+  const currentPrice = await getPrice(market);
+  console.log(`\n  매도 수량: ${volume}  현재가: ${fmt(currentPrice)}원`);
+  console.log(`  매도 전 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
 
   try {
-    member.buyCoin('KRW-BTC', 0.00001, 100_000_000);
+    const history = member.sellCoin(market, volume, currentPrice);
+    console.log(`  ✅ 매도 완료`);
+    console.log(`  매도 후 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
+    console.log(`  수수료: ${history.getPaidFee().toFixed(0)}원`);
   } catch (e) {
-    console.log('  주문 시도: 0.00001 BTC (최소 0.0001 미만)');
     console.log(`  ❌ 오류: ${(e as Error).message}`);
   }
 }
 
-async function runUC8_UC16(member: Member): Promise<void> {
-  header('[UC8] 보유코인 조회 → [UC16] 손익분석');
+async function handleUC8(): Promise<void> {
+  const member = requireMember();
+  if (!member) return;
+  console.log('\n[UC8] 보유코인 조회 + [UC16] 손익분석');
 
   const portfolio = member.viewPortfolio();
   const holdings = portfolio.holdings;
-
   if (holdings.length === 0) {
     console.log('  보유 중인 코인이 없습니다.');
     return;
   }
 
-  const tickers = await upbitGet<UpbitTickerRaw[]>(
-    '/ticker?markets=KRW-BTC',
-    () => [MOCK_TICKERS['KRW-BTC']],
-  );
-  const currentPrice = tickers[0].trade_price;
-  const prices = new Map<string, number>([['KRW-BTC', currentPrice]]);
+  // 각 보유 코인의 현재가 조회
+  const prices = new Map<string, number>();
+  for (const h of holdings) {
+    const market = `KRW-${h.currency}`;
+    prices.set(market, await getPrice(market));
+  }
 
-  console.log('  ─ 보유코인 목록 ─');
+  console.log('\n  ─ 보유코인 ─');
   holdings.forEach(h => {
-    const evalAmt = h.getEvalAmount(currentPrice);
-    const profitRate = h.getProfitRate(currentPrice);
-    const sign = profitRate >= 0 ? '+' : '';
+    const market = `KRW-${h.currency}`;
+    const price = prices.get(market)!;
+    const evalAmt = h.getEvalAmount(price);
+    const rate = h.getProfitRate(price);
+    const sign = rate >= 0 ? '+' : '';
     console.log(
       `  ${h.currency}: ${h.balance} 개 | 평균매수가 ${fmt(h.avgBuyPrice)}원 | ` +
-      `현재가 ${fmt(currentPrice)}원 | 평가금액 ${fmt(evalAmt)}원 | 수익률 ${sign}${profitRate.toFixed(2)}%`,
+      `현재가 ${fmt(price)}원 | 평가금액 ${fmt(evalAmt)}원 | 수익률 ${sign}${rate.toFixed(2)}%`,
     );
   });
 
-  portfolio.analyzeProfit(prices);
-  console.log('  ✅ 완료');
-}
-
-async function runUC6_normal(member: Member): Promise<void> {
-  header('[UC6] 매도 — 정상: 보유 BTC 전량 매도');
-
-  const portfolio = member.viewPortfolio();
-  const holding = portfolio.getHolding('BTC');
-  if (!holding) {
-    console.log('  보유 BTC가 없습니다. (UC5 매수가 선행되어야 함)');
-    return;
-  }
-
-  const tickers = await upbitGet<UpbitTickerRaw[]>(
-    '/ticker?markets=KRW-BTC',
-    () => [MOCK_TICKERS['KRW-BTC']],
-  );
-  const currentPrice = tickers[0].trade_price;
-  const volume = holding.balance;
-
-  console.log(`  매도 수량: ${volume} BTC  현재가: ${fmt(currentPrice)}원`);
-  console.log(`  매도 전 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
-
-  const history = member.sellCoin('KRW-BTC', volume, currentPrice);
-
-  console.log(`  매도 후 잔액: ${fmt(member.getWallet().getAvailableBalance())}원`);
-  console.log(`  수수료: ${history.getPaidFee().toFixed(0)}원`);
-  console.log('  ✅ 완료');
-}
-
-async function runUC6_A1(member: Member): Promise<void> {
-  header('[UC6-A1] 매도 — 보유량 부족: KRW-BTC 100 BTC 매도 시도');
-
-  const tickers = await upbitGet<UpbitTickerRaw[]>(
-    '/ticker?markets=KRW-BTC',
-    () => [MOCK_TICKERS['KRW-BTC']],
-  );
-  const currentPrice = tickers[0].trade_price;
-
-  try {
-    member.sellCoin('KRW-BTC', 100, currentPrice);
-  } catch (e) {
-    console.log('  매도 시도: 100 BTC');
-    console.log(`  ❌ 오류: ${(e as Error).message}`);
+  const ans = (await rl.question('\n  손익분석 상세를 보시겠습니까? (y/N): ')).trim().toLowerCase();
+  if (ans === 'y') {
+    portfolio.analyzeProfit(prices);
   }
 }
 
-async function runUC9(member: Member): Promise<void> {
-  header('[UC9] 거래내역 조회');
+async function handleUC9(): Promise<void> {
+  const member = requireMember();
+  if (!member) return;
+  console.log('\n[UC9] 거래내역 조회');
 
   const histories = member.viewTradeHistory();
   if (histories.length === 0) {
@@ -426,97 +426,157 @@ async function runUC9(member: Member): Promise<void> {
     return;
   }
 
-  console.log(`  전체 거래내역 (${histories.length}건):`);
-  histories.forEach((h, i) => {
+  const filterStr = (await rl.question('  기간 필터 (전체: 그냥 Enter, 1h/24h/7d): ')).trim();
+  let filtered = histories;
+  if (filterStr) {
+    const ms = parseDuration(filterStr);
+    if (ms === null) {
+      console.log('  ❌ 잘못된 기간 형식. (예: 1h, 24h, 7d)');
+      return;
+    }
+    const since = Date.now() - ms;
+    filtered = histories.filter(h => new Date(h.getCreatedAt()).getTime() >= since);
+    console.log(`\n  최근 ${filterStr} 거래내역 (${filtered.length}건):`);
+  } else {
+    console.log(`\n  전체 거래내역 (${filtered.length}건):`);
+  }
+
+  filtered.forEach((h, i) => {
     const side = h.getSide() === 'bid' ? '매수' : '매도';
     console.log(
       `  ${i + 1}. [${side}] ${h.getMarket()} | 수량: ${h.getVolume()} | ` +
       `가격: ${fmt(h.getPrice())}원 | 수수료: ${h.getPaidFee().toFixed(0)}원 | ${h.getCreatedAt()}`,
     );
   });
-
-  // A1: 기간 변경 — 최근 1시간 필터
-  const oneHourAgo = Date.now() - 60 * 60 * 1000;
-  const recent = histories.filter(h => new Date(h.getCreatedAt()).getTime() >= oneHourAgo);
-  console.log(`\n  [A1] 최근 1시간 거래내역 (${recent.length}건):`);
-  recent.forEach((h, i) => {
-    const side = h.getSide() === 'bid' ? '매수' : '매도';
-    console.log(`  ${i + 1}. [${side}] ${h.getMarket()} | 수량: ${h.getVolume()} | ${h.getCreatedAt()}`);
-  });
-
-  console.log('  ✅ 완료');
 }
 
-async function runUC10(member: Member): Promise<void> {
-  header('[UC10] 보유 자산 조회');
-
-  const wallet = member.getWallet();
-  console.log(`  통화: ${wallet.getCurrency()}`);
-  console.log(`  총 잔액: ${fmt(wallet.getBalance())}원`);
-  console.log(`  묶인 금액: ${fmt(wallet.getLocked())}원`);
-  console.log(`  사용 가능 잔액: ${fmt(wallet.getAvailableBalance())}원`);
-  console.log('  ✅ 완료');
+function parseDuration(s: string): number | null {
+  const m = s.match(/^(\d+)([hd])$/i);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return m[2].toLowerCase() === 'h' ? n * 3600_000 : n * 86_400_000;
 }
 
-async function runUC11(member: Member, coins: Coin[]): Promise<void> {
-  header('[UC11] 즐겨찾기 등록/해제');
+async function handleUC10(): Promise<void> {
+  const member = requireMember();
+  if (!member) return;
+  console.log('\n[UC10] 보유 자산 조회');
+  const w = member.getWallet();
+  console.log(`  통화: ${w.getCurrency()}`);
+  console.log(`  총 잔액: ${fmt(w.getBalance())}원`);
+  console.log(`  묶인 금액: ${fmt(w.getLocked())}원`);
+  console.log(`  사용 가능 잔액: ${fmt(w.getAvailableBalance())}원`);
+}
+
+async function handleUC11(): Promise<void> {
+  const member = requireMember();
+  if (!member) return;
+  console.log('\n[UC11] 즐겨찾기 등록/해제');
 
   const watchlist = member.getWatchlist();
-  const btc = coins.find(c => c.getMarketCode() === 'KRW-BTC')!;
+  console.log(`  현재 즐겨찾기 (${watchlist.getCoinList().length}개): [${watchlist.getCoinList().map(c => c.getMarketCode()).join(', ') || '비어 있음'}]`);
 
-  // 정상: 등록
-  watchlist.addCoin(btc);
-  console.log(`  ✅ 즐겨찾기 등록: ${btc.getKoreanName()} (${btc.getMarketCode()})`);
-  console.log(`  현재 즐겨찾기: [${watchlist.getCoinList().map(c => c.getMarketCode()).join(', ')}]`);
-
-  // A1: 이미 등록된 코인 재등록 시도
-  try {
-    watchlist.addCoin(btc);
-  } catch (e) {
-    console.log(`\n  [A1] 재등록 시도: ${btc.getMarketCode()}`);
-    console.log(`  ❌ 오류: ${(e as Error).message}`);
+  const market = (await rl.question('  토글할 마켓 코드 (예: KRW-BTC): ')).trim();
+  if (!market) {
+    console.log('  취소되었습니다.');
+    return;
   }
 
-  // 제거
-  watchlist.removeCoin('KRW-BTC');
-  console.log(`\n  ✅ 즐겨찾기 제거: KRW-BTC`);
+  const coins = await getCoins();
+  const coin = coins.find(c => c.getMarketCode() === market);
+  if (!coin) {
+    console.log(`  ❌ 존재하지 않는 마켓 코드: ${market}`);
+    return;
+  }
+
+  const alreadyAdded = watchlist.getCoinList().some(c => c.getMarketCode() === market);
+  if (alreadyAdded) {
+    watchlist.removeCoin(market);
+    console.log(`  ✅ 즐겨찾기에서 제거: ${coin.getKoreanName()} (${market})`);
+  } else {
+    watchlist.addCoin(coin);
+    console.log(`  ✅ 즐겨찾기에 추가: ${coin.getKoreanName()} (${market})`);
+  }
+
   console.log(`  현재 즐겨찾기: [${watchlist.getCoinList().map(c => c.getMarketCode()).join(', ') || '비어 있음'}]`);
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── 메뉴 ────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
-  console.log('\n' + '█'.repeat(52));
-  console.log('  업비트 모의 투자 — UseCase 시나리오 데모');
-  console.log('█'.repeat(52));
-
-  const guest = new NonMember('guest-001', '비회원');
-  const member = new Member('user-001', '테스트회원', 'test@example.com', 'password123');
-
-  // 공개 UseCase (비회원)
-  const coins = await runUC1(guest);
-  await runUC2_normal(guest, coins);
-  await runUC2_A1(guest, coins);
-  await runUC3_normal(guest);
-  await runUC3_A1(guest);
-  await runUC4(guest);
-
-  // 인증 UseCase (회원)
-  await runUC7_normal(member);
-  await runUC7_A1(member);
-  await runUC5_normal(member);
-  await runUC5_A1(member);
-  await runUC5_A2(member);
-  await runUC8_UC16(member);
-  await runUC6_normal(member);
-  await runUC6_A1(member);
-  await runUC9(member);
-  await runUC10(member);
-  await runUC11(member, coins);
-
-  console.log('\n' + '█'.repeat(52));
-  console.log('  모든 UseCase 시나리오 완료');
-  console.log('█'.repeat(52) + '\n');
+function printMenu(): void {
+  console.log('\n' + '═'.repeat(54));
+  console.log('  업비트 모의 투자 — UseCase 데모');
+  console.log('═'.repeat(54));
+  if (loggedInMember) {
+    const w = loggedInMember.getWallet();
+    console.log(`  👤 ${loggedInMember.getNickname()} (${loggedInMember.getEmail()})`);
+    console.log(`  💰 잔액: ${fmt(w.getAvailableBalance())}원`);
+  } else {
+    console.log('  👤 비회원 (로그인 안 됨)');
+  }
+  if (usingMock) console.log('  ⚠️  mock 데이터 모드');
+  console.log('─'.repeat(54));
+  console.log('  [공개]                          [회원 전용]');
+  console.log('   1. 코인 목록 조회               7. 자산 충전');
+  console.log('   2. 코인 검색                    8. 코인 매수');
+  console.log('   3. 차트 조회                    9. 코인 매도');
+  console.log('   4. 호가 조회                   10. 보유코인 + 손익분석');
+  console.log('                                  11. 거래내역 조회');
+  console.log('   5. 로그인                      12. 보유 자산 조회');
+  console.log('   6. 로그아웃                    13. 즐겨찾기 등록/해제');
+  console.log('');
+  console.log('   0. 종료');
+  console.log('═'.repeat(54));
 }
 
-main().catch(console.error);
+async function dispatch(choice: string): Promise<boolean> {
+  switch (choice) {
+    case '1': await handleUC1(); break;
+    case '2': await handleUC2(); break;
+    case '3': await handleUC3(); break;
+    case '4': await handleUC4(); break;
+    case '5': await handleLogin(); break;
+    case '6': await handleLogout(); break;
+    case '7': await handleUC7(); break;
+    case '8': await handleUC5(); break;
+    case '9': await handleUC6(); break;
+    case '10': await handleUC8(); break;
+    case '11': await handleUC9(); break;
+    case '12': await handleUC10(); break;
+    case '13': await handleUC11(); break;
+    case '0': case 'q': case 'exit':
+      return false;
+    default:
+      console.log('  ⚠️  올바른 메뉴 번호를 입력해주세요.');
+  }
+  return true;
+}
+
+async function main(): Promise<void> {
+  console.log('\n업비트 모의 투자 CLI를 시작합니다...');
+
+  let closed = false;
+  rl.on('close', () => { closed = true; });
+
+  while (!closed) {
+    printMenu();
+    let choice: string;
+    try {
+      choice = (await rl.question('  선택: ')).trim();
+    } catch {
+      break;
+    }
+    if (closed) break;
+    const cont = await dispatch(choice);
+    if (!cont) break;
+  }
+
+  console.log('\n  종료합니다. 안녕히 가세요!\n');
+  if (!closed) rl.close();
+}
+
+main().catch(err => {
+  console.error(err);
+  rl.close();
+  process.exit(1);
+});
