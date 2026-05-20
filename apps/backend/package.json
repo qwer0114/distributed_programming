@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "type-check": "tsc --noEmit",
-    "demo": "tsx src/cli.ts"
+    "demo": "tsx src/cli.ts",
+    "db-test": "tsx src/db-test.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",

@@ -25,6 +25,11 @@ export class Wallet {
     return this.balance - this.locked;
   }
 
+  load(balance: number, locked: number): void {
+    this.balance = balance;
+    this.locked = locked;
+  }
+
   getCurrency(): string { return this.currency; }
   getBalance(): number { return this.balance; }
   getLocked(): number { return this.locked; }

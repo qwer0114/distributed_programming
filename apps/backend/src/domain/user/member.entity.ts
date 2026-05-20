@@ -112,6 +112,10 @@ export class Member extends User {
     return this.watchlist;
   }
 
+  loadTradeHistory(h: TradeHistory): void {
+    this.tradeHistories.push(h);
+  }
+
   getEmail(): string { return this.email; }
   getCreatedAt(): string { return this.createdAt; }
 }

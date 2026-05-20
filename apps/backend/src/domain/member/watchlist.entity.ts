@@ -30,6 +30,10 @@ export class Watchlist {
     return [...this.coins];
   }
 
+  loadCoin(coin: Coin): void {
+    this.coins.push(coin);
+  }
+
   getWatchlistId(): number { return this.watchlistId; }
   getCreatedAt(): string { return this.createdAt; }
 }
