@@ -26,7 +26,7 @@ import {
   getWatchlistItems,
   addWatchlistItem,
   removeWatchlistItem,
-} from './db/database';
+} from './db/json-database';
 
 // ─── Upbit REST API Raw Types ─────────────────────────────────────────────────
 
