@@ -1,3 +1,6 @@
+// SSL inspection proxy 환경에서 인증서 검증 오류 우회 (개발/데모용)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 
