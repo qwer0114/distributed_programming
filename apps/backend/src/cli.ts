@@ -12,7 +12,6 @@ import { Member } from './domain/user/member.entity';
 import { NonMember } from './domain/user/non-member.entity';
 import { TradeHistory } from './domain/trade/trade-history.entity';
 import {
-  db,
   registerMember,
   findMemberByEmail,
   verifyPassword,
@@ -26,7 +25,7 @@ import {
   getWatchlistItems,
   addWatchlistItem,
   removeWatchlistItem,
-} from './db/json-database';
+} from './db/sqljs-database';
 
 // ─── Upbit REST API Raw Types ─────────────────────────────────────────────────
 
@@ -203,19 +202,19 @@ async function hydrateMemberFromDb(memberId: number, memberRow: { id: number; em
   const member = new Member(String(memberId), memberRow.nickname, memberRow.email, memberRow.password);
 
   // 지갑 로드
-  const walletRow = getWallet(memberId);
+  const walletRow = await getWallet(memberId);
   if (walletRow) {
     member.getWallet().load(walletRow.balance, walletRow.locked);
   }
 
   // 보유 코인 로드
-  const holdingRows = getHoldings(memberId);
+  const holdingRows = await getHoldings(memberId);
   for (const h of holdingRows) {
     member.viewPortfolio().holdings.push(new HoldingCoin(h.currency, h.balance, h.avg_buy_price));
   }
 
   // 거래 내역 로드
-  const historyRows = getTradeHistories(memberId);
+  const historyRows = await getTradeHistories(memberId);
   for (const h of historyRows) {
     member.loadTradeHistory(new TradeHistory(
       h.uuid, h.side as 'ask' | 'bid', h.ord_type,
@@ -226,7 +225,7 @@ async function hydrateMemberFromDb(memberId: number, memberRow: { id: number; em
 
   // 즐겨찾기 로드
   const coins = await getCoins();
-  const watchlistRows = getWatchlistItems(memberId);
+  const watchlistRows = await getWatchlistItems(memberId);
   for (const w of watchlistRows) {
     const coin = coins.find(c => c.getMarketCode() === w.market);
     if (coin) member.getWatchlist().loadCoin(coin);
@@ -357,7 +356,7 @@ async function handleLogin(): Promise<void> {
   const email = (await rl.question('  이메일: ')).trim();
   const password = (await rl.question('  비밀번호: ')).trim();
 
-  const row = findMemberByEmail(email);
+  const row = await findMemberByEmail(email);
   if (!row) {
     console.log('  ❌ 존재하지 않는 이메일입니다.');
     return;
@@ -401,7 +400,7 @@ async function handleUC7(): Promise<void> {
 
     // DB 동기화
     const w = member.getWallet();
-    saveWallet(currentMemberId!, w.getBalance(), w.getLocked());
+    await saveWallet(currentMemberId!, w.getBalance(), w.getLocked());
 
     console.log(`  ✅ 충전 완료: ${fmt(before)}원 → ${fmt(w.getBalance())}원`);
   } catch (e) {
@@ -426,18 +425,16 @@ async function handleUC5(): Promise<void> {
   try {
     const history = member.buyCoin(market, volume, currentPrice); // 도메인 로직
 
-    // DB 동기화 (트랜잭션)
+    // DB 동기화
     const mid = currentMemberId!;
     const w = member.getWallet();
     const currency = market.replace('KRW-', '');
     const holding = member.viewPortfolio().getHolding(currency)!;
 
-    db.transaction(() => {
-      saveWallet(mid, w.getBalance(), w.getLocked());
-      upsertHolding(mid, currency, holding.balance, holding.locked, holding.avgBuyPrice);
-      insertTradeHistory(mid, history.getUuid(), history.getSide(), history.getOrdType(),
-        history.getPrice(), history.getVolume(), history.getMarket(), history.getPaidFee());
-    })();
+    await saveWallet(mid, w.getBalance(), w.getLocked());
+    await upsertHolding(mid, currency, holding.balance, holding.locked, holding.avgBuyPrice);
+    await insertTradeHistory(mid, history.getUuid(), history.getSide(), history.getOrdType(),
+      history.getPrice(), history.getVolume(), history.getMarket(), history.getPaidFee());
 
     console.log(`  ✅ 매수 완료`);
     console.log(`  주문 후 잔액: ${fmt(w.getAvailableBalance())}원`);
@@ -474,21 +471,19 @@ async function handleUC6(): Promise<void> {
   try {
     const history = member.sellCoin(market, volume, currentPrice); // 도메인 로직
 
-    // DB 동기화 (트랜잭션)
+    // DB 동기화
     const mid = currentMemberId!;
     const w = member.getWallet();
     const afterHolding = member.viewPortfolio().getHolding(currency);
 
-    db.transaction(() => {
-      saveWallet(mid, w.getBalance(), w.getLocked());
-      if (afterHolding) {
-        upsertHolding(mid, currency, afterHolding.balance, afterHolding.locked, afterHolding.avgBuyPrice);
-      } else {
-        deleteHolding(mid, currency); // 전량 매도 시 삭제
-      }
-      insertTradeHistory(mid, history.getUuid(), history.getSide(), history.getOrdType(),
-        history.getPrice(), history.getVolume(), history.getMarket(), history.getPaidFee());
-    })();
+    await saveWallet(mid, w.getBalance(), w.getLocked());
+    if (afterHolding) {
+      await upsertHolding(mid, currency, afterHolding.balance, afterHolding.locked, afterHolding.avgBuyPrice);
+    } else {
+      await deleteHolding(mid, currency); // 전량 매도 시 삭제
+    }
+    await insertTradeHistory(mid, history.getUuid(), history.getSide(), history.getOrdType(),
+      history.getPrice(), history.getVolume(), history.getMarket(), history.getPaidFee());
 
     console.log(`  ✅ 매도 완료`);
     console.log(`  매도 후 잔액: ${fmt(w.getAvailableBalance())}원`);
@@ -540,7 +535,7 @@ async function handleUC9(): Promise<void> {
   if (!member) return;
   console.log('\n[UC9] 거래내역 조회');
 
-  const rows = getTradeHistories(currentMemberId!);
+  const rows = await getTradeHistories(currentMemberId!);
   if (rows.length === 0) {
     console.log('  거래내역이 없습니다.');
     return;
@@ -580,7 +575,7 @@ async function handleUC10(): Promise<void> {
   if (!member) return;
   console.log('\n[UC10] 보유 자산 조회');
 
-  const walletRow = getWallet(currentMemberId!);
+  const walletRow = await getWallet(currentMemberId!);
   if (!walletRow) { console.log('  지갑 정보를 불러올 수 없습니다.'); return; }
 
   console.log(`  통화:          KRW`);
@@ -609,11 +604,11 @@ async function handleUC11(): Promise<void> {
   const alreadyAdded = watchlist.getCoinList().some(c => c.getMarketCode() === market);
   if (alreadyAdded) {
     watchlist.removeCoin(market);
-    removeWatchlistItem(currentMemberId!, market); // DB 동기화
+    await removeWatchlistItem(currentMemberId!, market); // DB 동기화
     console.log(`  ✅ 즐겨찾기에서 제거: ${coin.getKoreanName()} (${market})`);
   } else {
     watchlist.addCoin(coin);
-    addWatchlistItem(currentMemberId!, market); // DB 동기화
+    await addWatchlistItem(currentMemberId!, market); // DB 동기화
     console.log(`  ✅ 즐겨찾기에 추가: ${coin.getKoreanName()} (${market})`);
   }
 
@@ -695,7 +690,6 @@ async function main(): Promise<void> {
   }
 
   console.log('\n  종료합니다. 안녕히 가세요!\n');
-  db.close();
   if (!closed) rl.close();
 }
 
